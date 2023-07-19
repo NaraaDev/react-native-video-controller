@@ -40,6 +40,9 @@ node_modules/
 npm-debug.log
 yarn-error.log
 
+# Typescript
+*.tsbuildinfo
+
 # fastlane
 #
 # It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
@@ -59,5 +62,28 @@ yarn-error.log
 /ios/Pods/
 /vendor/bundle/
 
+# Jest
+.jest
+coverage/
+
+
+# Environments
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Detox
+artifacts/
+
+# Emulator logs
+*.log
+
+# IDEs
+.vscode/
+
 # Temporary files created by Metro to check the health of the file watcher
 .metro-health-check*
+
+# testing
+/coverage
