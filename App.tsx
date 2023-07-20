@@ -1,13 +1,17 @@
 import React from 'react';
-import {StyleSheet, View} from 'react-native';
+import {StyleSheet} from 'react-native';
 
-import VideoPlayer from '@/screens/VideoPlayer';
+import CustomVideoPlayer from '@/screens/VideoPlayer';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <VideoPlayer />
-    </View>
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={styles.container}>
+        <CustomVideoPlayer />
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }
 
