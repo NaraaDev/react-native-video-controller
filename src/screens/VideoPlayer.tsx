@@ -27,7 +27,7 @@ import {TapButton} from '@/components/TapButton';
 
 const controlTimeout = 2000;
 const doubleTapInterval = 500;
-const showOnStart = true;
+const showOnStart = false;
 
 const controlAnimateConfig: WithTimingConfig = {
   duration: 200,
@@ -64,7 +64,7 @@ export default function CustomVideoPlayer() {
     };
   }, []);
 
-  const controlViewOpacity = useSharedValue(showOnStart ? 1 : 0);
+  const controlViewOpacity = useSharedValue(0);
   const isFullScreen = useSharedValue(false);
   const videoScale = useSharedValue(1);
   const panIsVertical = useSharedValue(false);
@@ -107,6 +107,7 @@ export default function CustomVideoPlayer() {
 
   const showControlAnimation = () => {
     'worklet';
+
     controlViewOpacity.value = withTiming(1, controlAnimateConfig);
     setControlTimeout();
   };
@@ -146,8 +147,15 @@ export default function CustomVideoPlayer() {
   const singleTapHandler = Gesture.Tap().onEnd((_event, success) => {
     if (success) {
       if (controlViewOpacity.value === 0) {
-        controlViewOpacity.value = 1;
-        setControlTimeout();
+        controlViewOpacity.value = withTiming(
+          1,
+          controlAnimateConfig,
+          animationEnded => {
+            if (animationEnded) {
+              setControlTimeout();
+            }
+          },
+        );
       } else {
         controlViewOpacity.value = withTiming(0, controlAnimateConfig);
       }
@@ -225,10 +233,8 @@ export default function CustomVideoPlayer() {
   const toggleFullScreenOnJS = () => {
     if (isFullScreen.value) {
       exitFullScreen();
-      StatusBar.setHidden(false, 'fade');
     } else {
       enterFullScreen();
-      StatusBar.setHidden(true, 'fade');
     }
   };
 
