@@ -3,6 +3,7 @@ import {
   Dimensions,
   StatusBar,
   StyleSheet,
+  Text,
   useWindowDimensions,
 } from 'react-native';
 
@@ -16,18 +17,30 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
+
 import {EdgeInsets, useSafeAreaInsets} from 'react-native-safe-area-context';
-
-import Video, {OnProgressData, OnSeekData} from 'react-native-video';
-
-import {useRefs} from '@/components/ripple/VideoUtils';
-import Ripple from '@/components/ripple/Ripple';
 import Orientation from 'react-native-orientation-locker';
+import Video, {
+  OnLoadData,
+  OnProgressData,
+  OnSeekData,
+} from 'react-native-video';
+
+import {Slider} from 'react-native-awesome-slider';
+
+import {secondToTime, useRefs} from '@/components/ripple/VideoUtils';
+import Ripple from '@/components/ripple/Ripple';
 import {TapButton} from '@/components/TapButton';
+
+import PauseIcon from '@/assets/pause.svg';
+import PlayIcon from '@/assets/play.svg';
+import ForwardIcon from '@/assets/forward.svg';
+import BackwardIcon from '@/assets/backward.svg';
+import MinimumIcon from '@/assets/minimumScreen.svg';
+import MaximumIcon from '@/assets/fullscreen.svg';
 
 const controlTimeout = 2000;
 const doubleTapInterval = 500;
-const showOnStart = false;
 
 const controlAnimateConfig: WithTimingConfig = {
   duration: 200,
@@ -40,6 +53,7 @@ const VIDEO_CUSTOM_HEIGHT = width * (9 / 16);
 export default function CustomVideoPlayer() {
   const insets = useSafeAreaInsets();
   const insetsRef = useRef<EdgeInsets>(insets);
+  const isSeeking = useRef(false);
   const dimension = useWindowDimensions();
 
   const lBoundary = dimension.width / 2 - insets.left - insets.right - 80;
@@ -49,6 +63,7 @@ export default function CustomVideoPlayer() {
   const [duration, setDuration] = useState(0);
   const [loading, setLoading] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [paused, setPaused] = useState(true);
 
   const videoRef = useRef<Video>(null);
 
@@ -73,6 +88,10 @@ export default function CustomVideoPlayer() {
   const doubleRightOpacity = useSharedValue(0);
   const videoHeight = useSharedValue(VIDEO_CUSTOM_HEIGHT);
   const videoWidth = useSharedValue(width);
+  const minSliderValue = useSharedValue(0);
+  const maxSliderValue = useSharedValue(0);
+  const progress = useSharedValue(0);
+  const isScrubbing = useSharedValue(false);
 
   const videoStyle = useAnimatedStyle(() => {
     return {
@@ -85,7 +104,30 @@ export default function CustomVideoPlayer() {
   const viewStyle = useAnimatedStyle(() => {
     return {
       opacity: controlViewOpacity.value,
-      justifyContent: 'center',
+    };
+  });
+
+  const fullScreenSliderStyle = useAnimatedStyle(() => {
+    return {
+      opacity: withTiming(isFullScreen.value ? 1 : 0),
+    };
+  });
+
+  const bottomTapsStyle = useAnimatedStyle(() => {
+    return {
+      width: withTiming(
+        isFullScreen.value
+          ? height - insetsRef.current.top - insetsRef.current.bottom - 40
+          : width - 40,
+      ),
+    };
+  });
+
+  const sliderInsetsStyle = useAnimatedStyle(() => {
+    return {
+      marginBottom: withTiming(
+        isFullScreen.value ? (insets.bottom > 10 ? insets.bottom : 10) : 0,
+      ),
     };
   });
 
@@ -202,11 +244,38 @@ export default function CustomVideoPlayer() {
     setLoading(true);
   };
 
-  const onSeek = (data: OnSeekData) => {};
+  const onLoad = (data: OnLoadData) => {
+    setDuration(data?.duration);
+    maxSliderValue.value = data?.duration;
+    setLoading(false);
+    setControlTimeout();
+  };
+
+  const onSeek = (data: OnSeekData) => {
+    if (isScrubbing.value) {
+      if (!isSeeking.current) {
+        setControlTimeout();
+        pause();
+      }
+      isSeeking.current = false;
+      isScrubbing.value = false;
+
+      setCurrentTime(data.currentTime);
+    } else {
+      isSeeking.current = false;
+    }
+  };
 
   const onEnd = () => {};
 
-  const onProgress = (data: OnProgressData) => {};
+  const onProgress = (data: OnProgressData) => {
+    if (!isScrubbing.value) {
+      if (!isSeeking.current) {
+        progress.value = data.currentTime;
+      }
+      setCurrentTime(data.currentTime);
+    }
+  };
 
   /**
    * Fullscreen functions
@@ -248,12 +317,58 @@ export default function CustomVideoPlayer() {
     runOnJS(toggleFullScreenOnJS)();
   };
 
+  // line Control
+
+  const pause = () => {
+    setPaused(true);
+  };
+
+  const play = () => {
+    setPaused(false);
+  };
+
+  const togglePlayOnJS = () => {
+    paused ? play() : pause();
+  };
+
+  const onPauseTapHandler = () => {
+    'worklet';
+
+    const status = checkTapTakesEffect();
+    if (!status) {
+      return;
+    }
+    runOnJS(togglePlayOnJS)();
+  };
+
+  // slide functions
+
+  const seekTo = (time = 0) => {
+    setCurrentTime(time);
+    videoRef.current?.seek(time);
+  };
+
+  const onTapSlider = () => {
+    if (controlViewOpacity.value === 0) {
+      showControlAnimation();
+    }
+  };
+
+  const onSlidingComplete = (val: number) => {
+    isSeeking.current = true;
+    seekTo(val);
+  };
+
+  const onSlidingStart = () => {
+    clearControlTimeout();
+  };
+
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View style={[styles.screen, videoStyle]}>
         <Video
           ref={videoRef}
-          paused={true}
+          paused={paused}
           style={styles.video}
           resizeMode="contain"
           fullscreenAutorotate
@@ -263,31 +378,80 @@ export default function CustomVideoPlayer() {
           }}
           onSeek={onSeek}
           onEnd={onEnd}
+          onLoad={onLoad}
           onLoadStart={onLoadStart}
           onProgress={onProgress}
         />
         <Animated.View style={StyleSheet.absoluteFillObject}>
-          <Animated.View
-            style={[
-              {
-                overflow: 'hidden',
-                justifyContent: 'center',
-                ...StyleSheet.absoluteFillObject,
-              },
-              viewStyle,
-            ]}>
-            <TapButton
-              style={{
-                height: 50,
-                width: 50,
-                backgroundColor: 'red',
-                alignSelf: 'center',
-              }}
-              onPress={toggleFullScreen}></TapButton>
+          <Animated.View style={[styles.container, viewStyle]}>
+            <Animated.View style={styles.lineControl}>
+              <TapButton
+                onPress={toggleFullScreen}
+                style={fullScreenSliderStyle}>
+                <BackwardIcon width={48} height={48} color="#FFF" />
+              </TapButton>
+              <TapButton onPress={onPauseTapHandler}>
+                {paused ? (
+                  <PlayIcon width={48} height={48} color="#FFF" />
+                ) : (
+                  <PauseIcon width={48} height={48} color="#FFF" />
+                )}
+              </TapButton>
+              <TapButton
+                onPress={toggleFullScreen}
+                style={fullScreenSliderStyle}>
+                <ForwardIcon width={48} height={48} color="#FFF" />
+              </TapButton>
+            </Animated.View>
+            <Animated.View style={[styles.buttonControl, bottomTapsStyle]}>
+              <Animated.Text style={fullScreenSliderStyle}>
+                sdaasdfasdfasd
+              </Animated.Text>
+              <TapButton onPress={toggleFullScreen}>
+                {isFullScreen.value ? (
+                  <MinimumIcon color="#FFF" width={24} height={24} />
+                ) : (
+                  <MaximumIcon color="#FFF" width={24} height={24} />
+                )}
+              </TapButton>
+            </Animated.View>
+            <Animated.View
+              style={[
+                sliderInsetsStyle,
+                styles.sliderStyle,
+                {
+                  width:
+                    height -
+                    insetsRef.current.top -
+                    insetsRef.current.bottom -
+                    40,
+                },
+                fullScreenSliderStyle,
+              ]}>
+              {duration > 0 && (
+                <Slider
+                  isScrubbing={isScrubbing}
+                  minimumValue={minSliderValue}
+                  maximumValue={maxSliderValue}
+                  onSlidingComplete={onSlidingComplete}
+                  onSlidingStart={onSlidingStart}
+                  onTap={onTapSlider}
+                  sliderHeight={2}
+                  progress={progress}
+                  thumbWidth={12}
+                  theme={{bubbleTextColor: 'red'}}
+                  disableTapEvent
+                  bubble={value => {
+                    return secondToTime(value);
+                  }}
+                  thumbScaleValue={controlViewOpacity}
+                />
+              )}
+            </Animated.View>
           </Animated.View>
         </Animated.View>
 
-        {/* <Ripple
+        <Ripple
           ref={rippleLeft}
           containerStyle={{width: lBoundary}}
           style={[styles.doubleTap, styles.leftDoubleTap]}
@@ -304,7 +468,7 @@ export default function CustomVideoPlayer() {
             doubleRightOpacity.value = 0;
           }}>
           <Text>sdafasd</Text>
-        </Ripple> */}
+        </Ripple>
       </Animated.View>
     </GestureDetector>
   );
@@ -319,6 +483,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   video: {height: '100%', width: '100%'},
+  container: {
+    overflow: 'hidden',
+    alignItems: 'center',
+    ...StyleSheet.absoluteFillObject,
+  },
   doubleTap: {
     position: 'absolute',
     height: '100%',
@@ -336,4 +505,18 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: width,
     right: 0,
   },
+  lineControl: {
+    paddingTop: 36,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    width: '100%',
+    flex: 1,
+  },
+  buttonControl: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sliderStyle: {marginTop: 10},
 });
