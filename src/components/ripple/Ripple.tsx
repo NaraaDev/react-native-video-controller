@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
     left: 0,
     zIndex: 1111,
     position: 'absolute',
-    backgroundColor: 'red',
+    backgroundColor: '#f3EEEE20',
   },
 });
 

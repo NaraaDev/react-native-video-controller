@@ -75,6 +75,7 @@ export default function CustomVideoPlayer() {
 
     return () => {
       clearControlTimeout();
+      pause();
       Orientation.lockToPortrait();
     };
   }, []);
@@ -104,6 +105,7 @@ export default function CustomVideoPlayer() {
   const viewStyle = useAnimatedStyle(() => {
     return {
       opacity: controlViewOpacity.value,
+      backgroundColor: '#00000040',
     };
   });
 
@@ -204,6 +206,14 @@ export default function CustomVideoPlayer() {
     }
   });
 
+  const seekByStep = (isBack = false) => {
+    if (isBack) {
+      seekTo(Math.max(0, currentTime - 10));
+    } else {
+      seekTo(Math.min(duration, currentTime + 10));
+    }
+  };
+
   const doubleTapHandler = Gesture.Tap()
     .numberOfTaps(2)
     .maxDuration(doubleTapInterval)
@@ -212,7 +222,7 @@ export default function CustomVideoPlayer() {
     })
     .onEnd((event, success) => {
       if (success) {
-        if (event.numberOfPointers !== 1) {
+        if (event.numberOfPointers !== 1 || !isFullScreen.value) {
           return;
         }
 
@@ -220,15 +230,15 @@ export default function CustomVideoPlayer() {
           doubleLeftOpacity.value = 1;
           rippleLeft.current?.onPress({x: event.x, y: event.y});
 
-          /*TODO seek video*/
+          runOnJS(seekByStep)(true);
           return;
         }
 
         if (event.x > rBoundary) {
           doubleRightOpacity.value = 1;
-          rippleRight.current?.onPress({x: event.x - lBoundary, y: event.y});
+          rippleRight.current?.onPress({x: event.x - rBoundary, y: event.y});
 
-          /*TODO seek video*/
+          runOnJS(seekByStep)(false);
           return;
         }
       }
@@ -363,6 +373,25 @@ export default function CustomVideoPlayer() {
     clearControlTimeout();
   };
 
+  const handleBackward = () => {
+    'worklet';
+
+    if (!isFullScreen.value) {
+      return;
+    }
+
+    runOnJS(seekByStep)(true);
+  };
+
+  const handleForward = () => {
+    'worklet';
+
+    if (!isFullScreen.value) {
+      return;
+    }
+    runOnJS(seekByStep)(false);
+  };
+
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View style={[styles.screen, videoStyle]}>
@@ -385,10 +414,8 @@ export default function CustomVideoPlayer() {
         <Animated.View style={StyleSheet.absoluteFillObject}>
           <Animated.View style={[styles.container, viewStyle]}>
             <Animated.View style={styles.lineControl}>
-              <TapButton
-                onPress={toggleFullScreen}
-                style={fullScreenSliderStyle}>
-                <BackwardIcon width={48} height={48} color="#FFF" />
+              <TapButton onPress={handleBackward} style={fullScreenSliderStyle}>
+                <BackwardIcon width={40} height={40} color="#FFF" />
               </TapButton>
               <TapButton onPress={onPauseTapHandler}>
                 {paused ? (
@@ -397,15 +424,14 @@ export default function CustomVideoPlayer() {
                   <PauseIcon width={48} height={48} color="#FFF" />
                 )}
               </TapButton>
-              <TapButton
-                onPress={toggleFullScreen}
-                style={fullScreenSliderStyle}>
-                <ForwardIcon width={48} height={48} color="#FFF" />
+              <TapButton onPress={handleForward} style={fullScreenSliderStyle}>
+                <ForwardIcon width={40} height={40} color="#FFF" />
               </TapButton>
             </Animated.View>
             <Animated.View style={[styles.buttonControl, bottomTapsStyle]}>
-              <Animated.Text style={fullScreenSliderStyle}>
-                sdaasdfasdfasd
+              <Animated.Text style={[fullScreenSliderStyle, styles.time]}>
+                {new Date(currentTime * 1000).toISOString().slice(14, 19)} /
+                {new Date(duration * 1000).toISOString().slice(14, 19)}
               </Animated.Text>
               <TapButton onPress={toggleFullScreen}>
                 {isFullScreen.value ? (
@@ -415,6 +441,7 @@ export default function CustomVideoPlayer() {
                 )}
               </TapButton>
             </Animated.View>
+
             <Animated.View
               style={[
                 sliderInsetsStyle,
@@ -430,6 +457,7 @@ export default function CustomVideoPlayer() {
               ]}>
               {duration > 0 && (
                 <Slider
+                  disable={!isFullScreen.value}
                   isScrubbing={isScrubbing}
                   minimumValue={minSliderValue}
                   maximumValue={maxSliderValue}
@@ -439,7 +467,12 @@ export default function CustomVideoPlayer() {
                   sliderHeight={2}
                   progress={progress}
                   thumbWidth={12}
-                  theme={{bubbleTextColor: 'red'}}
+                  theme={{
+                    bubbleTextColor: '#FFF',
+                    minimumTrackTintColor: '#00000090',
+                    maximumTrackTintColor: '#ffffff50',
+                    bubbleBackgroundColor: '#00000090',
+                  }}
                   disableTapEvent
                   bubble={value => {
                     return secondToTime(value);
@@ -450,7 +483,6 @@ export default function CustomVideoPlayer() {
             </Animated.View>
           </Animated.View>
         </Animated.View>
-
         <Ripple
           ref={rippleLeft}
           containerStyle={{width: lBoundary}}
@@ -519,4 +551,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sliderStyle: {marginTop: 10},
+  time: {color: '#FFF'},
 });
